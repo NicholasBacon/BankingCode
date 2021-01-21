@@ -1,4 +1,4 @@
-package com.bacon.osbot.banking.trash
+package com.bacon.osbot.banking
 
 import com.bacon.osbot.banking.*
 
@@ -298,12 +298,12 @@ class MoveOb11(
     fun openclosebank(type: Type): MoveOb11 {
         if (type == Type.wear) {
             if (this.open) {
-                return this.dup(movesC = 1, moveslistC = closeThing, openC = false, openCounterC = 1)
+                return this.dup(movesC = 1, moveslistC = closeThing, openC = false, openCounterC = 1, noteC = false)
             }
             return this
         }
         if (!this.open) {
-            return this.dup(movesC = 1, moveslistC = closeThing, openC = true)
+            return this.dup(movesC = 1, moveslistC = closeThing, openC = true, noteC = false)
         }
         return this
     }
@@ -330,7 +330,7 @@ class MoveOb11(
             invC = with.second,
             bankC = with.first,
             movesC = mov,
-            moveslistC = listOf(Triple(Actions.withdraw, item, amount)),
+            moveslistC = listOf(Triple(Actions.withdraw, (item), amount)),
             xC = newX,
 
             )
@@ -368,181 +368,210 @@ class MoveOb11(
         goal_eqp: List<Triple<Int, Int, Int>>,
         set_Of_goals: Set<Int>
     ): List<Triple<Direction, Int, Int>> {
-        val t =System.nanoTime()
+        val t = System.nanoTime()
 
 
+        val allId = set_Of_goals.toMutableSet()
+        allId.addAll(inv.items.map { s -> s.first })
+        allId.addAll(eq.items.map { s -> s.first })
+        val returnOb = mutableListOf<Triple<Direction, Int, Int>>()
 
-            val allId = set_Of_goals.toMutableSet()
-            allId.addAll(inv.items.map { s -> s.first })
-            allId.addAll(eq.items.map { s -> s.first })
-            val returnOb = mutableListOf<Triple<Direction, Int, Int>>()
+        val too_much = Direction.too_much
+        val too_little = Direction.too_little
+        val wear = Direction.wear
+        val takeOff = Direction.take_off
 
-            val too_much = Direction.too_much
-            val too_little = Direction.too_little
-            val wear = Direction.wear
-            val takeOff = Direction.take_off
+        val _i = goal_inv.toMutableList()
+        val _e = goal_eqp.toMutableList()
 
-            val _i = goal_inv.toMutableList()
-            val _e = goal_eqp.toMutableList()
-
-            allId.forEach { s ->
-                val goal_i = _i.firstOrNullREMove(s)
-                val goal_e = _e.firstOrNullREMove(s)
-                val i = inv[s]
-                val e = eq[s]
-                var mask = 0
-                if (goal_i != null) {
-                    mask += 1
+        allId.forEach { s ->
+            val goal_i = _i.firstOrNullREMove(s)
+            val goal_e = _e.firstOrNullREMove(s)
+            val i = inv[s]
+            val e = eq[s]
+            var mask = 0
+            if (goal_i != null) {
+                mask += 1
+            }
+            if (goal_e != null) {
+                mask += 2
+            }
+            if (i != null) {
+                mask += 4
+            }
+            if (e != null) {
+                mask += 8
+            }
+            when (mask) {
+                1 -> {
+                    //in inv goal but not the inv
+                    returnOb.add(Triple(too_little, s, goal_i!!.third))
                 }
-                if (goal_e != null) {
-                    mask += 2
+                2 -> {
+                    //in inv goal but not the inv or eq
+                    returnOb.add(Triple(too_little, s, goal_e!!.third))
                 }
-                if (i != null) {
-                    mask += 4
+                3 -> {
+                    //in both inv goal and eq goal
+                    returnOb.add(Triple(too_little, s, goal_e!!.third + goal_i!!.third))
+                    returnOb.add(Triple(too_little, s, goal_e.third))
+                    returnOb.add(Triple(too_little, s, goal_i.third))
                 }
-                if (e != null) {
-                    mask += 8
+                4 -> {
+                    //in inv and should not be
+                    returnOb.add(Triple(too_much, s, i!!))
                 }
-                when (mask) {
-                    1 -> {
-                        //in inv goal but not the inv
-                        returnOb.add(Triple(too_little, s, goal_i!!.third))
+                5 -> {
+                    //in inv and in goal
+                    if (goal_i!!.third > i!!) {
+                        returnOb.add(Triple(too_little, s, goal_i.third - i))
+                    } else if (goal_i.third < i) {
+                        returnOb.add(Triple(too_much, s, i - goal_i.third))
                     }
-                    2 -> {
-                        //in inv goal but not the inv or eq
-                        returnOb.add(Triple(too_little, s, goal_e!!.third))
-                    }
-                    3 -> {
-                        //in both inv goal and eq goal
-                        returnOb.add(Triple(too_little, s, goal_e!!.third + goal_i!!.third))
-                        returnOb.add(Triple(too_little, s, goal_e!!.third ))
-                        returnOb.add(Triple(too_little, s, goal_i!!.third ))
-                    }
-                    4 -> {
-                        //in inv and should not be
-                        returnOb.add(Triple(too_much, s, i!!))
-                    }
-                    5 -> {
-                        //in inv and in goal
-                        if (goal_i!!.third > i!!) {
-                            returnOb.add(Triple(too_little, s, goal_i.third - i))
-                        } else if (goal_i.third < i) {
-                            returnOb.add(Triple(too_much, s, i - goal_i.third))
-                        }
 
+                }
+                6 -> {
+                    //in eq goal and in the inv
+                    if (goal_e!!.third == i!!) {
+                        returnOb.add(Triple(wear, s, goal_e.third))
+                    } else if (goal_e.third > i) {
+                        returnOb.add(Triple(too_little, s, goal_e.third - i))
+                    } else if (goal_e.third < i) {
+                        returnOb.add(Triple(too_much, s, i - goal_e.third))
                     }
-                    6 -> {
-                        //in eq goal and in the inv
-                        if (goal_e!!.third == i!!) {
+
+                }
+                7 -> {
+//                    in (inv and eq) goals and has items in inv
+                    val total = goal_e!!.third + goal_i!!.third
+
+                    if (stackableQ(s)) {
+                        if (goal_e.third == i!!) {
                             returnOb.add(Triple(wear, s, goal_e.third))
-                        } else if (goal_e.third > i) {
-                            returnOb.add(Triple(too_little, s, goal_e.third - i))
                         } else if (goal_e.third < i) {
                             returnOb.add(Triple(too_much, s, i - goal_e.third))
-                        }
 
-                    }
-                    7 -> {
-//                    in (inv and eq) goals and has items in inv
-                        val total = goal_e!!.third + goal_i!!.third
-
-                        if (stackableQ(s)) {
-                            if (goal_e.third == i!!) {
-                                returnOb.add(Triple(wear, s, goal_e.third))
-                            } else if (goal_e.third < i) {
-                                returnOb.add(Triple(too_much, s, i - goal_e.third))
-
-                            } else if (goal_e.third > i) {
-                                returnOb.add(Triple(too_little, s, goal_e.third - i))
-                            }
-
-
-                        } else {
-                            if (total == i!!) {
-                                returnOb.add(Triple(wear, s, goal_e.third))
-                            } else if (total > i) {
-                                returnOb.add(Triple(wear, s, goal_e.third))
-                                returnOb.add(Triple(too_much, s, i - total))
-                            } else if (total < i) {
-                                returnOb.add(Triple(wear, s, goal_e.third))
-                                returnOb.add(Triple(too_little, s, total - i))
-                            }
-
+                        } else if (goal_e.third > i) {
+                            returnOb.add(Triple(too_little, s, goal_e.third - i))
                         }
 
 
+                    } else {
+                        if (total == i!!) {
+                            returnOb.add(Triple(wear, s, goal_e.third))
+                        } else if (total > i) {
+                            returnOb.add(Triple(wear, s, goal_e.third))
+                            returnOb.add(Triple(too_much, s, i - total))
+                        } else if (total < i) {
+                            returnOb.add(Triple(wear, s, goal_e.third))
+                            returnOb.add(Triple(too_little, s, total - i))
+                        }
+
                     }
-                    8, 9 -> {
+
+
+                }
+                8, 9 -> {
 //                    wearing it but it should be taken off
-                        returnOb.add(Triple(takeOff, s, e!!))
+                    returnOb.add(Triple(takeOff, s, e!!))
 
-                    }
-
-                    10 -> {
-                        if (stackableQ(s)) {
-                            if (e!! != goal_e!!.third) {
-                                returnOb.add(Triple(takeOff, s, e))
-                            }
-                        }
-                    }
-                    11 -> {
-                        if (stackableQ(s)) {
-                            if (e!! != goal_e!!.third) {
-                                returnOb.add(Triple(takeOff, s, e))
-                            }
-                        }
-
-                        returnOb.add(Triple(too_little, s, goal_i!!.third))
-
-
-                    }
-                    12 -> {
-                        returnOb.add(Triple(takeOff, s, e!!))
-                        returnOb.add(Triple(too_much, s, i!!))
-
-                    }
-                    13 -> {
-                        returnOb.add(Triple(takeOff, s, e!!))
-                        if (goal_i!!.third > i!!) {
-                            returnOb.add(Triple(too_little, s, goal_i.third - i))
-                        } else if (goal_i.third < i) {
-                            returnOb.add(Triple(too_much, s, i - goal_i.third))
-                        }
-                    }
-                    14 -> {
-                        if (stackableQ(s)) {
-                            if (e!! != goal_e!!.third) {
-                                returnOb.add(Triple(takeOff, s, e))
-                            }
-                        }
-
-                        returnOb.add(Triple(too_much, s, i!!))
-
-
-                    }
-                    15 -> {
-                        if (stackableQ(s)) {
-                            if (e!! != goal_e!!.third) {
-                                returnOb.add(Triple(takeOff, s, e))
-                            }
-                        }
-                        if (goal_i!!.third > i!!) {
-                            returnOb.add(Triple(too_little, s, goal_i.third - i))
-                        } else if (goal_i.third < i) {
-                            returnOb.add(Triple(too_much, s, i - goal_i.third))
-                        }
-
-                    }
                 }
 
+                10 -> {
+                    if (stackableQ(s)) {
+                        if (e!! != goal_e!!.third) {
+                            returnOb.add(Triple(takeOff, s, e))
+                        }
+                    }
+                }
+                11 -> {
+                    if (stackableQ(s)) {
+                        if (e!! != goal_e!!.third) {
+                            returnOb.add(Triple(takeOff, s, e))
+                        }
+                    }
 
+                    returnOb.add(Triple(too_little, s, goal_i!!.third))
+
+
+                }
+                12 -> {
+                    returnOb.add(Triple(takeOff, s, e!!))
+                    returnOb.add(Triple(too_much, s, i!!))
+
+                }
+                13 -> {
+                    returnOb.add(Triple(takeOff, s, e!!))
+                    if (goal_i!!.third > i!!) {
+                        returnOb.add(Triple(too_little, s, goal_i.third - i))
+                    } else if (goal_i.third < i) {
+                        returnOb.add(Triple(too_much, s, i - goal_i.third))
+                    }
+                }
+                14 -> {
+                    if (stackableQ(s)) {
+                        if (e!! != goal_e!!.third) {
+                            returnOb.add(Triple(takeOff, s, e))
+                        }
+                    }
+
+                    returnOb.add(Triple(too_much, s, i!!))
+
+
+                }
+                15 -> {
+                    if (stackableQ(s)) {
+                        if (e!! != goal_e!!.third) {
+                            returnOb.add(Triple(takeOff, s, e))
+                        }
+                    }
+                    if (goal_i!!.third > i!!) {
+                        returnOb.add(Triple(too_little, s, goal_i.third - i))
+                    } else if (goal_i.third < i) {
+                        returnOb.add(Triple(too_much, s, i - goal_i.third))
+                    }
+
+                }
             }
 
-            time += (System.nanoTime() - t)
-            return returnOb
+
+        }
+
+        time += (System.nanoTime() - t)
+        var x: Map<Direction, List<Triple<Direction, Int, Int>>> = returnOb.groupBy { s -> s.first }
+
+
+        return if (x[too_much] != null) {
+            x[too_much]!!
+        } else if (x[wear] != null && x[takeOff] != null) {
+            val xt = x[wear]!!.toMutableList()
+            xt.addAll(x[takeOff]!!)
+            xt
+        } else if (x[wear] != null) {
+            x[wear]!!
+        } else if (x[takeOff] != null) {
+            x[takeOff]!!
+        } else if (x[too_little] != null) {
+            x[too_little]!!
+        } else {
+            emptyList()
+        }
+
+
+
+//        return returnOb
 
     }
 
+    private fun badprosess(
+    ): List<Triple<Direction, Int, Int>> {
+        val returnOb = mutableListOf<Triple<Direction, Int, Int>>()
+        inv.items.forEach {s->
+            returnOb.add(Triple(Direction.too_much, s.first, Int.MAX_VALUE))
+        }
+       return returnOb
+
+    }
 
     fun nextFilter(goal_eqp: List<Triple<Int, Int, Int>>): Boolean {
         if (openCounter == 1 && open && !checkgoaleq(goal_eqp)) {
@@ -553,28 +582,48 @@ class MoveOb11(
 
     }
 
+    fun makeMakeNextfirstturn(        goal_eqp: List<Triple<Int, Int, Int>>): List<MoveOb11> {
+        val returnls = mutableListOf<MoveOb11>()
+        val t: List<Triple<Direction, Int, Int>> = badprosess()
+
+        t.forEachIndexed { i, triple ->
+            returnls.add(
+                when (triple.first) {
+                    Direction.too_much -> deposit(triple.second, triple.third)
+                    Direction.too_little -> withdraw(triple.second, triple.third)
+                    Direction.wear -> eq(triple.second)
+                    Direction.take_off -> uneq(triple.second)
+                }
+            )
+
+        }
+        return returnls.filter { nextFilter(goal_eqp) }
+    }
+
+
+
+
     fun makeMakeNext(
         goal_inv: List<Triple<Int, Int, Int>>,
         goal_eqp: List<Triple<Int, Int, Int>>,
         set_Of_goals: Set<Int>
     ): List<MoveOb11> {
         val returnls = mutableListOf<MoveOb11>()
-        val t: List<Triple<Direction, Int, Int>> = prosess(goal_inv, goal_eqp,set_Of_goals)
+        val t: List<Triple<Direction, Int, Int>> = prosess(goal_inv, goal_eqp, set_Of_goals)
 
-        t.forEachIndexed { i,triple ->
-            val newls =t.toMutableList()
-            newls.removeAt(i)
-            returnls.add(  when (triple.first) {
-                Direction.too_much -> deposit(triple.second, triple.third)
-                Direction.too_little -> withdraw(triple.second, triple.third)
-                Direction.wear -> eq(triple.second)
-                Direction.take_off -> uneq(triple.second)
-            })
+        t.forEachIndexed { i, triple ->
+            returnls.add(
+                when (triple.first) {
+                    Direction.too_much -> deposit(triple.second, triple.third)
+                    Direction.too_little -> withdraw(triple.second, triple.third)
+                    Direction.wear -> eq(triple.second)
+                    Direction.take_off -> uneq(triple.second)
+                }
+            )
 
         }
         return returnls.filter { nextFilter(goal_eqp) }
     }
-
     fun checkgoal(goal_inv: List<Triple<Int, Int, Int>>, goal_eqp: List<Triple<Int, Int, Int>>): Boolean {
 
         if (!checkgoalInv(goal_inv)) {

@@ -1,7 +1,6 @@
 package com.bacon.osbot.banking
 
 
-
 import com.bacon.osbot.banking.Actions.*
 import com.bacon.osbot.banking.trash.MoveOb11
 import org.osbot.rs07.api.Bank
@@ -23,53 +22,59 @@ class SuperBanker(
         goal_inv: List<Triple<Int, Int, Int>>,
         goal_eqp: List<Triple<Int, Int, Int>>
     ): List<Triple<Actions, Int, Int>> {
-        val pbq = PriorityBlockingQueue<MoveOb11>()
-        val goal = LinkedBlockingDeque<List<Triple<Actions, Int, Int>>>()
-        var running = true
-        var loop = 1
-        pbq.addAll(
-            listOf<MoveOb11>(
-                start,
-                start.depositAll(Deposit.BOTH),
-                start.depositAll(Deposit.EQ),
-                start.depositAll(Deposit.INV)
-            )
-        )
 
+        val set_Of_goals = goal_inv.map { s -> s.first }.toMutableSet()
         var total = 0
+
+
+        var y = listOf<MoveOb11>(start)
+        for (i in 0 .. 11) {
+            val set1 = ConcurrentHashMap<Int, MoveOb11>()
+            y.forEach { s ->
+                s.makeMakeNextfirstturn(goal_eqp).forEach { t ->
+                    val hashed = t.hashCode()
+                    val testItem = set1[hashed]
+                    if (testItem == null || t.moves < testItem.moves) {
+                        set1[hashed] = t
+                    }
+
+                }
+            }
+            y = set1.values.toList()
+        }
         var x = listOf<MoveOb11>(
             start,
             start.depositAll(Deposit.BOTH),
             start.depositAll(Deposit.EQ),
-            start.depositAll(Deposit.INV)
+            start.depositAll(Deposit.INV),
+            *y.toTypedArray()
         )
-        val set_Of_goals =
-          goal_inv.map { s -> s.first }.toMutableSet()
+        y= emptyList()
+
+
         set_Of_goals.addAll(goal_eqp.map { s -> s.first })
         for (i in 0..100) {
-            val any = x.filter { s -> s.checkgoal(goal_inv, goal_eqp) }.map { s->s.openclosebank(MoveOb11.Type.wear) }.minByOrNull { s->s.moves }
+            val any = x.filter { s -> s.checkgoal(goal_inv, goal_eqp) }.map { s -> s.openclosebank(MoveOb11.Type.wear) }
+                .minByOrNull { s -> s.moves }
             if (any != null) {
 
                 return any.moveslist
             }
 
 
-
-
-            val set = ConcurrentHashMap<Int,MoveOb11>()
+            val set = ConcurrentHashMap<Int, MoveOb11>()
 
             x.parallelStream().forEach { s ->
-                s.makeMakeNext(goal_inv, goal_eqp,set_Of_goals).forEach {
-                        t->
+                s.makeMakeNext(goal_inv, goal_eqp, set_Of_goals).forEach { t ->
                     val hashed = t.hashCode()
                     val testItem = set[hashed]
-                    if(testItem==null||t.moves<testItem.moves){
-                        set[hashed]=t
+                    if (testItem == null || t.moves < testItem.moves) {
+                        set[hashed] = t
                     }
 
                 }
             }
-            x= set.values.toList()
+            x = set.values.toList()
 
             total += x.size
         }
@@ -124,7 +129,7 @@ class SuperBanker(
                 if (!getBank().isOpen) {
                     getBank().open()
                 }
-
+                sleep(1000)
                 listOFAction = findGoal(makeOb(), goal_inv, goal_eqp).toMutableList()
                 if (listOFAction.isEmpty()) {
                     setFinished()
@@ -145,12 +150,20 @@ class SuperBanker(
                 when (thisActoion.first) {
                     deposit -> getBank().deposit(thisActoion.second, thisActoion.third)
                     depositAlleq -> getBank().depositWornItems()
-                    wear -> getInventory().getItem(thisActoion.second).interact("Wear", "Wield")
-                    takeoff -> getEquipment().unequip(
-                        getEquipment().getSlotForItemIds(thisActoion.second),
-                        thisActoion.second
-                    )
-                    withdraw -> getBank().withdraw(thisActoion.second, thisActoion.third)
+                    wear -> {
+                        getInventory().getItem(thisActoion.second).interact("Wear", "Wield")
+                        return MethodProvider.random(600, 1000)
+                    }
+
+                    takeoff -> {
+                        getEquipment().unequip(
+                            getEquipment().getSlotForItemIds(thisActoion.second),
+                            thisActoion.second
+                        )
+                        return MethodProvider.random(600, 1000)
+                    }
+
+                    withdraw -> getBank().withdraw(getNNotedMaybe(thisActoion.second), thisActoion.third)
                     invdepositAll -> getBank().depositAll()
                     close -> if (getBank().isOpen) {
                         getBank().close()

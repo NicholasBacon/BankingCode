@@ -2,7 +2,6 @@ package com.bacon.osbot.banking
 
 
 import com.bacon.osbot.banking.Actions.*
-import com.bacon.osbot.banking.trash.MoveOb11
 import org.osbot.rs07.api.Bank
 import org.osbot.rs07.api.ui.Tab
 import org.osbot.rs07.api.util.ItemContainer
@@ -24,32 +23,14 @@ class SuperBanker(
     ): List<Triple<Actions, Int, Int>> {
 
         val set_Of_goals = goal_inv.map { s -> s.first }.toMutableSet()
-        var total = 0
 
-
-        var y = listOf<MoveOb11>(start)
-        for (i in 0 .. 11) {
-            val set1 = ConcurrentHashMap<Int, MoveOb11>()
-            y.forEach { s ->
-                s.makeMakeNextfirstturn(goal_eqp).forEach { t ->
-                    val hashed = t.hashCode()
-                    val testItem = set1[hashed]
-                    if (testItem == null || t.moves < testItem.moves) {
-                        set1[hashed] = t
-                    }
-
-                }
-            }
-            y = set1.values.toList()
-        }
         var x = listOf<MoveOb11>(
             start,
             start.depositAll(Deposit.BOTH),
             start.depositAll(Deposit.EQ),
-            start.depositAll(Deposit.INV),
-            *y.toTypedArray()
+            start.depositAll(Deposit.INV)
         )
-        y= emptyList()
+
 
 
         set_Of_goals.addAll(goal_eqp.map { s -> s.first })
@@ -60,7 +41,6 @@ class SuperBanker(
 
                 return any.moveslist
             }
-
 
             val set = ConcurrentHashMap<Int, MoveOb11>()
 
@@ -76,7 +56,6 @@ class SuperBanker(
             }
             x = set.values.toList()
 
-            total += x.size
         }
         return emptyList()
     }

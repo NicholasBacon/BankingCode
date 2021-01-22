@@ -2,6 +2,7 @@ package com.bacon.osbot.banking
 
 
 import com.bacon.osbot.banking.Actions.*
+import com.bacon.osbot.sleep.Sleep
 import org.osbot.rs07.api.Bank
 import org.osbot.rs07.api.ui.Tab
 import org.osbot.rs07.api.util.ItemContainer
@@ -45,6 +46,7 @@ class SuperBanker(
             val set = ConcurrentHashMap<Int, MoveOb11>()
 
             x.parallelStream().forEach { s ->
+                try {
                 s.makeMakeNext(goal_inv, goal_eqp, set_Of_goals).forEach { t ->
                     val hashed = t.hashCode()
                     val testItem = set[hashed]
@@ -53,6 +55,9 @@ class SuperBanker(
                     }
 
                 }
+            }catch ( e:Exception){
+            }
+
             }
             x = set.values.toList()
 
@@ -108,11 +113,37 @@ class SuperBanker(
                 if (!getBank().isOpen) {
                     getBank().open()
                 }
-                sleep(1000)
-                listOFAction = findGoal(makeOb(), goal_inv, goal_eqp).toMutableList()
+                try {
+                    listOFAction = findGoal(makeOb(), goal_inv, goal_eqp).toMutableList()
+
+                } catch ( e:Exception){
+
+                    // Deal with e as you please.
+                    //e may be any type of exception at all.
+
+                }finally {
+                    println("failed 1 times")
+                }
                 if (listOFAction.isEmpty()) {
-                    setFinished()
-                    setFailed()
+                    if (!getInventory().isEmpty) {
+                        getBank().depositAll()
+                        Sleep.sleepUntil({ getInventory().isEmpty }, 3000, 200)
+                    }
+                    try {
+                        listOFAction = findGoal(makeOb(), goal_inv, goal_eqp).toMutableList()
+
+                    }catch ( e:Exception){
+
+                        // Deal with e as you please.
+                        //e may be any type of exception at all.
+
+                    } finally {
+                        println("failed 2 times")
+                    }
+                    if (listOFAction.isEmpty()) {
+                        setFinished()
+                        setFailed()
+                    }
                 }
 
             }
@@ -157,7 +188,7 @@ class SuperBanker(
                     openEq -> getTabs().open(Tab.EQUIPMENT)
                     openINv -> getTabs().open(Tab.INVENTORY)
                 }
-                return MethodProvider.random(1000, 3500)
+                return MethodProvider.random(500, 2000)
             }
         }).hasFailed()
     }

@@ -595,15 +595,18 @@ class MoveOb11(
         val t: List<Triple<Direction, Int, Int>> = prosess(goal_inv, goal_eqp, set_Of_goals)
 
         t.forEachIndexed { i, triple ->
-            returnls.add(
-                when (triple.first) {
-                    Direction.too_much -> deposit(triple.second, triple.third)
-                    Direction.too_little -> withdraw(triple.second, triple.third)
-                    Direction.wear -> eq(triple.second)
-                    Direction.take_off -> uneq(triple.second)
-                }
-            )
-
+            try {
+                returnls.add(
+                    when (triple.first) {
+                        Direction.too_much -> deposit(triple.second, triple.third)
+                        Direction.too_little -> withdraw(triple.second, triple.third)
+                        Direction.wear -> eq(triple.second)
+                        Direction.take_off -> uneq(triple.second)
+                    }
+                )
+            }catch ( e:Exception){
+                
+            }
         }
         return returnls.filter { nextFilter(goal_eqp) }
     }

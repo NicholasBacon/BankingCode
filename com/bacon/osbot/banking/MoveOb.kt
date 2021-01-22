@@ -555,8 +555,8 @@ class MoveOb11(
             returnlist.add(groups[Direction.too_little]!!.filter { s -> eqset.contains(s.second) }
                 .maxByOrNull { s -> s.third })
         }
-        if (groups[Direction.wear] != null) {
-            returnlist.add(groups[Direction.wear]!!.maxByOrNull { s -> s.third })
+        if (groups[Direction.take_off] != null) {
+            returnlist.add(groups[Direction.take_off]!!.maxByOrNull { s -> s.third })
         }
 
         if (!checkgoaleq(goal_eqp)){
@@ -605,7 +605,7 @@ class MoveOb11(
                     }
                 )
             }catch ( e:Exception){
-                
+
             }
         }
         return returnls.filter { nextFilter(goal_eqp) }

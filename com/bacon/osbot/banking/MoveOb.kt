@@ -1,9 +1,5 @@
 package com.bacon.osbot.banking
 
-import com.bacon.osbot.banking.*
-
-var time = 0L
-var time1 = 0L
 
 class MoveOb11(
     val inv: EQ,
@@ -61,8 +57,15 @@ class MoveOb11(
 
     }
 
+    var count = -1
     fun count(): Int {
-        return inv.items.sumBy { s -> if (stackableQ(s.first) || notedQ(s.first)) 1 else s.second }
+        if (count == -1) {
+            count = inv.items.sumBy { s -> if (stackableQ(s.first) || notedQ(s.first)) 1 else s.second }
+
+        }
+
+
+        return count
 
     }
 
@@ -368,13 +371,11 @@ class MoveOb11(
         goal_eqp: List<Triple<Int, Int, Int>>,
         set_Of_goals: Set<Int>
     ): List<Triple<Direction, Int, Int>> {
-        val t = System.nanoTime()
-
-
         val allId = set_Of_goals.toMutableSet()
         allId.addAll(inv.items.map { s -> s.first })
         allId.addAll(eq.items.map { s -> s.first })
         val returnOb = mutableListOf<Triple<Direction, Int, Int>>()
+
 
         val too_much = Direction.too_much
         val too_little = Direction.too_little
@@ -450,7 +451,6 @@ class MoveOb11(
                             returnOb.add(Triple(wear, s, goal_e.third))
                         } else if (goal_e.third < i) {
                             returnOb.add(Triple(too_much, s, i - goal_e.third))
-
                         } else if (goal_e.third > i) {
                             returnOb.add(Triple(too_little, s, goal_e.third - i))
                         }
@@ -537,41 +537,44 @@ class MoveOb11(
 
         }
 
-        time += (System.nanoTime() - t)
-        var x: Map<Direction, List<Triple<Direction, Int, Int>>> = returnOb.groupBy { s -> s.first }
+        val groups = returnOb.groupBy { s -> s.first }
+        val returnlist = mutableListOf<Triple<Direction, Int, Int>?>()
 
 
-        return if (x[too_much] != null) {
-            x[too_much]!!
-        } else if (x[wear] != null && x[takeOff] != null) {
-            val xt = x[wear]!!.toMutableList()
-            xt.addAll(x[takeOff]!!)
-            xt
-        } else if (x[wear] != null) {
-            x[wear]!!
-        } else if (x[takeOff] != null) {
-            x[takeOff]!!
-        } else if (x[too_little] != null) {
-            x[too_little]!!
-        } else {
-            emptyList()
+        val eqset = goal_eqp.map { t -> t.first }.toSet()
+        if (groups[Direction.wear] != null) {
+            returnlist.add(groups[Direction.wear]!!.maxByOrNull { s -> s.third })
+        }
+        if (groups[Direction.too_much] != null) {
+            returnlist.add(groups[Direction.too_much]!!.maxByOrNull { s -> s.third })
+        }
+        if (groups[Direction.too_little] != null) {
+            returnlist.add(groups[Direction.too_little]!!.filter { s -> notedQ(s.second) }.maxByOrNull { s -> s.third })
+            returnlist.add(groups[Direction.too_little]!!.filter { s -> !notedQ(s.second) }
+                .maxByOrNull { s -> s.third })
+            returnlist.add(groups[Direction.too_little]!!.filter { s -> eqset.contains(s.second) }
+                .maxByOrNull { s -> s.third })
+        }
+        if (groups[Direction.wear] != null) {
+            returnlist.add(groups[Direction.wear]!!.maxByOrNull { s -> s.third })
         }
 
+        if (!checkgoaleq(goal_eqp)){
+            var randomDeposit =
+                inv.items.filter { s -> !eqset.contains(s.first) && !notedQ(s.first) && !stackableQ(s.first) }
+                    .maxByOrNull { s -> s.second }
 
+            if (randomDeposit != null) {
+                returnlist.add(
+                    Triple(too_much, randomDeposit.first, randomDeposit.second)
+                )
+            }
+        }
 
-//        return returnOb
+        return returnlist.filterNotNull()
 
     }
 
-    private fun badprosess(
-    ): List<Triple<Direction, Int, Int>> {
-        val returnOb = mutableListOf<Triple<Direction, Int, Int>>()
-        inv.items.forEach {s->
-            returnOb.add(Triple(Direction.too_much, s.first, Int.MAX_VALUE))
-        }
-       return returnOb
-
-    }
 
     fun nextFilter(goal_eqp: List<Triple<Int, Int, Int>>): Boolean {
         if (openCounter == 1 && open && !checkgoaleq(goal_eqp)) {
@@ -581,26 +584,6 @@ class MoveOb11(
         return openCounter != 2 && noteCounter != 2 && unCounter != 3 && (count() <= 28)
 
     }
-
-    fun makeMakeNextfirstturn(        goal_eqp: List<Triple<Int, Int, Int>>): List<MoveOb11> {
-        val returnls = mutableListOf<MoveOb11>()
-        val t: List<Triple<Direction, Int, Int>> = badprosess()
-
-        t.forEachIndexed { i, triple ->
-            returnls.add(
-                when (triple.first) {
-                    Direction.too_much -> deposit(triple.second, triple.third)
-                    Direction.too_little -> withdraw(triple.second, triple.third)
-                    Direction.wear -> eq(triple.second)
-                    Direction.take_off -> uneq(triple.second)
-                }
-            )
-
-        }
-        return returnls.filter { nextFilter(goal_eqp) }
-    }
-
-
 
 
     fun makeMakeNext(
@@ -624,6 +607,7 @@ class MoveOb11(
         }
         return returnls.filter { nextFilter(goal_eqp) }
     }
+
     fun checkgoal(goal_inv: List<Triple<Int, Int, Int>>, goal_eqp: List<Triple<Int, Int, Int>>): Boolean {
 
         if (!checkgoalInv(goal_inv)) {
@@ -639,53 +623,63 @@ class MoveOb11(
 
     }
 
+
+    var checkinv =0
     fun checkgoalInv(goal_inv: List<Triple<Int, Int, Int>>): Boolean {
+        if (checkinv ==0) {
+            checkinv = 1
+            if (inv.items.any { s ->
+                    !goal_inv.containsKey(s.first)
 
-        if (inv.items.any { s ->
-                !goal_inv.containsKey(s.first)
+                }) return false
+            if (goal_inv.isEmpty() && inv.items.isNotEmpty()) {
+                return false
+            }
 
-            }) return false
-        if (goal_inv.isEmpty() && inv.items.isNotEmpty()) {
-            return false
+            if (goal_inv.toList().any { s ->
+
+                    val testItem = inv[s.first]
+                    if (testItem == null) {
+                        true
+                    } else {
+                        testItem !in s.second..s.third
+                    }
+
+                }) return false
+            checkinv = 2
         }
 
-        if (goal_inv.toList().any { s ->
-
-                val testItem = inv[s.first]
-                if (testItem == null) {
-                    true
-                } else {
-                    testItem !in s.second..s.third
-                }
-
-            }) return false
-
-        return true
+        return checkinv==2
 
     }
-
+    var checkeq =0
     fun checkgoaleq(goal_eqp: List<Triple<Int, Int, Int>>): Boolean {
 
+        if (checkeq ==0){
+            checkeq=1
+            if (eq.items.any {
 
-        if (eq.items.any {
+                        s ->
+                    !goal_eqp.containsKey(s.first)
 
-                    s ->
-                !goal_eqp.containsKey(s.first)
+                }) return false
 
-            }) return false
-
-        if (goal_eqp.any { s ->
-                val testItem = eq[s.first]
-                if (testItem == null) {
-                    true
-                } else {
-                    testItem !in s.second..s.third
-                }
-            }) return false
-        if (goal_eqp.isEmpty() && eq.items.isNotEmpty()) {
-            return false
+            if (goal_eqp.any { s ->
+                    val testItem = eq[s.first]
+                    if (testItem == null) {
+                        true
+                    } else {
+                        testItem !in s.second..s.third
+                    }
+                }) return false
+            if (goal_eqp.isEmpty() && eq.items.isNotEmpty()) {
+                return false
+            }
+            checkeq=2
         }
-        return true
+
+
+        return checkeq==2
 
     }
 
